@@ -196,8 +196,13 @@
         <h3 style="margin-bottom: 20px; font-size: 16px; text-align: center;">PARTICLE CONTROLS</h3>
         
         <div class="control-group">
-            <label>Particle Count <span class="value-display" id="particleCountValue">1000</span></label>
-            <input type="range" id="particleCount" min="100" max="3000" value="1000" step="100">
+            <label>Max Particles <span class="value-display" id="particleCountValue">2000</span></label>
+            <input type="range" id="particleCount" min="100" max="10000" value="2000" step="100">
+        </div>
+        
+        <div class="control-group">
+            <label>Emission Rate <span class="value-display" id="emissionRateValue">5</span></label>
+            <input type="range" id="emissionRate" min="1" max="20" value="5" step="1">
         </div>
         
         <div class="control-group">
@@ -255,7 +260,8 @@
         
         // Settings
         let settings = {
-            particleCount: 1000,
+            particleCount: 2000,
+            emissionRate: 5,
             particleSize: 3,
             diffusion: 0.98,
             sensitivity: 30,
@@ -420,7 +426,7 @@
         // Create particles from motion
         function createParticlesFromMotion() {
             for (const motion of motionGrid) {
-                const particlesToCreate = Math.floor(motion.intensity * 5);
+                const particlesToCreate = Math.floor(motion.intensity * settings.emissionRate);
                 for (let i = 0; i < particlesToCreate; i++) {
                     if (particles.length < settings.particleCount) {
                         const offsetX = (Math.random() - 0.5) * 20;
@@ -464,6 +470,11 @@
         document.getElementById('particleCount').addEventListener('input', (e) => {
             settings.particleCount = parseInt(e.target.value);
             document.getElementById('particleCountValue').textContent = e.target.value;
+        });
+        
+        document.getElementById('emissionRate').addEventListener('input', (e) => {
+            settings.emissionRate = parseInt(e.target.value);
+            document.getElementById('emissionRateValue').textContent = e.target.value;
         });
         
         document.getElementById('particleSize').addEventListener('input', (e) => {
