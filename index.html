@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Webcam Particle Vapor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #000;
+            overflow: hidden;
+            color: #fff;
+        }
+
+        #canvas {
+            display: block;
+            background: #000;
+        }
+
+        #video {
+            display: none;
+        }
+
+        .controls {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(20, 20, 20, 0.95);
+            padding: 20px;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            width: 280px;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+            z-index: 1000;
+        }
+
+        .controls.hidden {
+            transform: translateX(-320px);
+            opacity: 0;
+        }
+
+        .control-group {
+            margin-bottom: 18px;
+        }
+
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #fff;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: #fff;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+
+        .value-display {
+            display: inline-block;
+            margin-left: 8px;
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            flex: 1;
+            min-width: 100px;
+            padding: 10px 16px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        button.active {
+            background: rgba(100, 200, 255, 0.3);
+            border-color: rgba(100, 200, 255, 0.5);
+        }
+
+        .status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background: rgba(20, 20, 20, 0.9);
+            border-radius: 20px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            backdrop-filter: blur(10px);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #00ff00;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas"></canvas>
+    
+    <div class="loading" id="loading">
+        <div class="loading-spinner"></div>
+        <div>Initializing webcam...</div>
+    </div>
+    
+    <div class="controls" id="controls">
+        <h3 style="margin-bottom: 20px; font-size: 16px; text-align: center;">PARTICLE CONTROLS</h3>
+        
+        <div class="control-group">
+            <label>Particle Count <span class="value-display" id="particleCountValue">1000</span></label>
+            <input type="range" id="particleCount" min="100" max="3000" value="1000" step="100">
+        </div>
+        
+        <div class="control-group">
+            <label>Particle Size <span class="value-display" id="particleSizeValue">3</span></label>
+            <input type="range" id="particleSize" min="1" max="10" value="3" step="0.5">
+        </div>
+        
+        <div class="control-group">
+            <label>Particle Diffusion <span class="value-display" id="diffusionValue">0.98</span></label>
+            <input type="range" id="diffusion" min="0.9" max="0.99" value="0.98" step="0.01">
+        </div>
+        
+        <div class="control-group">
+            <label>Motion Sensitivity <span class="value-display" id="sensitivityValue">30</span></label>
+            <input type="range" id="sensitivity" min="10" max="100" value="30" step="5">
+        </div>
+        
+        <div class="control-group">
+            <label>Motion Grid Resolution <span class="value-display" id="gridResValue">20</span></label>
+            <input type="range" id="gridRes" min="10" max="50" value="20" step="5">
+        </div>
+        
+        <div class="control-group">
+            <label>Particle Lifetime <span class="value-display" id="lifetimeValue">100</span></label>
+            <input type="range" id="lifetime" min="20" max="200" value="100" step="10">
+        </div>
+        
+        <div class="control-group">
+            <label>Turbulence <span class="value-display" id="turbulenceValue">0.5</span></label>
+            <input type="range" id="turbulence" min="0" max="2" value="0.5" step="0.1">
+        </div>
+        
+        <div class="control-group">
+            <div class="button-group">
+                <button id="mirrorBtn">Mirror</button>
+                <button id="fullscreenBtn">Fullscreen</button>
+                <button id="hideUIBtn">Hide UI</button>
+                <button id="clearBtn">Clear</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="status" id="status">
+        <div class="status-dot"></div>
+        <span>Camera Active</span>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const loading = document.getElementById('loading');
+        const controls = document.getElementById('controls');
+        const status = document.getElementById('status');
+        
+        // Settings
+        let settings = {
+            particleCount: 1000,
+            particleSize: 3,
+            diffusion: 0.98,
+            sensitivity: 30,
+            gridRes: 20,
+            lifetime: 100,
+            turbulence: 0.5,
+            mirrored: false
+        };
+        
+        // Particle system
+        let particles = [];
+        let prevFrame = null;
+        let motionGrid = [];
+        
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 2;
+                this.vy = (Math.random() - 0.5) * 2;
+                this.color = color;
+                this.life = settings.lifetime;
+                this.maxLife = settings.lifetime;
+                this.size = settings.particleSize;
+            }
+            
+            update() {
+                // Apply turbulence
+                this.vx += (Math.random() - 0.5) * settings.turbulence;
+                this.vy += (Math.random() - 0.5) * settings.turbulence;
+                
+                // Apply diffusion (damping)
+                this.vx *= settings.diffusion;
+                this.vy *= settings.diffusion;
+                
+                // Update position
+                this.x += this.vx;
+                this.y += this.vy;
+                
+                // Decrease life
+                this.life--;
+                
+                // Wrap around edges
+                if (this.x < 0) this.x = canvas.width;
+                if (this.x > canvas.width) this.x = 0;
+                if (this.y < 0) this.y = canvas.height;
+                if (this.y > canvas.height) this.y = 0;
+            }
+            
+            draw() {
+                const alpha = (this.life / this.maxLife) * 0.8;
+                ctx.fillStyle = `rgba(${this.color.r}, ${this.color.g}, ${this.color.b}, ${alpha})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size * (this.life / this.maxLife), 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        
+        // Resize canvas
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        
+        // Initialize webcam
+        async function initWebcam() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    }
+                });
+                video.srcObject = stream;
+                video.onloadedmetadata = () => {
+                    loading.style.display = 'none';
+                    status.style.display = 'flex';
+                    animate();
+                };
+            } catch (error) {
+                console.error('Error accessing webcam:', error);
+                loading.innerHTML = '<div style="color: #ff4444;">Error: Cannot access webcam</div>';
+            }
+        }
+        
+        // Get pixel color at position
+        function getPixelColor(imageData, x, y) {
+            const index = (y * imageData.width + x) * 4;
+            return {
+                r: imageData.data[index],
+                g: imageData.data[index + 1],
+                b: imageData.data[index + 2]
+            };
+        }
+        
+        // Detect motion
+        function detectMotion() {
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = video.videoWidth;
+            tempCanvas.height = video.videoHeight;
+            
+            if (settings.mirrored) {
+                tempCtx.save();
+                tempCtx.scale(-1, 1);
+                tempCtx.drawImage(video, -tempCanvas.width, 0, tempCanvas.width, tempCanvas.height);
+                tempCtx.restore();
+            } else {
+                tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+            }
+            
+            const currentFrame = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+            
+            if (prevFrame) {
+                const gridWidth = Math.floor(tempCanvas.width / settings.gridRes);
+                const gridHeight = Math.floor(tempCanvas.height / settings.gridRes);
+                
+                motionGrid = [];
+                
+                for (let gy = 0; gy < settings.gridRes; gy++) {
+                    for (let gx = 0; gx < settings.gridRes; gx++) {
+                        let totalDiff = 0;
+                        let sampledColor = null;
+                        
+                        // Sample the grid cell
+                        for (let dy = 0; dy < gridHeight; dy += 5) {
+                            for (let dx = 0; dx < gridWidth; dx += 5) {
+                                const x = gx * gridWidth + dx;
+                                const y = gy * gridHeight + dy;
+                                const index = (y * tempCanvas.width + x) * 4;
+                                
+                                const diff = Math.abs(currentFrame.data[index] - prevFrame.data[index]) +
+                                            Math.abs(currentFrame.data[index + 1] - prevFrame.data[index + 1]) +
+                                            Math.abs(currentFrame.data[index + 2] - prevFrame.data[index + 2]);
+                                
+                                totalDiff += diff;
+                                
+                                if (!sampledColor && diff > settings.sensitivity) {
+                                    sampledColor = getPixelColor(currentFrame, x, y);
+                                }
+                            }
+                        }
+                        
+                        if (totalDiff > settings.sensitivity * 10 && sampledColor) {
+                            const worldX = (gx / settings.gridRes) * canvas.width;
+                            const worldY = (gy / settings.gridRes) * canvas.height;
+                            
+                            motionGrid.push({
+                                x: worldX,
+                                y: worldY,
+                                color: sampledColor,
+                                intensity: Math.min(totalDiff / 1000, 1)
+                            });
+                        }
+                    }
+                }
+            }
+            
+            prevFrame = currentFrame;
+        }
+        
+        // Create particles from motion
+        function createParticlesFromMotion() {
+            for (const motion of motionGrid) {
+                const particlesToCreate = Math.floor(motion.intensity * 5);
+                for (let i = 0; i < particlesToCreate; i++) {
+                    if (particles.length < settings.particleCount) {
+                        const offsetX = (Math.random() - 0.5) * 20;
+                        const offsetY = (Math.random() - 0.5) * 20;
+                        particles.push(new Particle(
+                            motion.x + offsetX,
+                            motion.y + offsetY,
+                            motion.color
+                        ));
+                    }
+                }
+            }
+        }
+        
+        // Animation loop
+        function animate() {
+            // Clear canvas with fade effect
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Detect motion
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                detectMotion();
+                createParticlesFromMotion();
+            }
+            
+            // Update and draw particles
+            particles = particles.filter(particle => {
+                particle.update();
+                if (particle.life > 0) {
+                    particle.draw();
+                    return true;
+                }
+                return false;
+            });
+            
+            requestAnimationFrame(animate);
+        }
+        
+        // Control handlers
+        document.getElementById('particleCount').addEventListener('input', (e) => {
+            settings.particleCount = parseInt(e.target.value);
+            document.getElementById('particleCountValue').textContent = e.target.value;
+        });
+        
+        document.getElementById('particleSize').addEventListener('input', (e) => {
+            settings.particleSize = parseFloat(e.target.value);
+            document.getElementById('particleSizeValue').textContent = e.target.value;
+        });
+        
+        document.getElementById('diffusion').addEventListener('input', (e) => {
+            settings.diffusion = parseFloat(e.target.value);
+            document.getElementById('diffusionValue').textContent = e.target.value;
+        });
+        
+        document.getElementById('sensitivity').addEventListener('input', (e) => {
+            settings.sensitivity = parseInt(e.target.value);
+            document.getElementById('sensitivityValue').textContent = e.target.value;
+        });
+        
+        document.getElementById('gridRes').addEventListener('input', (e) => {
+            settings.gridRes = parseInt(e.target.value);
+            document.getElementById('gridResValue').textContent = e.target.value;
+        });
+        
+        document.getElementById('lifetime').addEventListener('input', (e) => {
+            settings.lifetime = parseInt(e.target.value);
+            document.getElementById('lifetimeValue').textContent = e.target.value;
+        });
+        
+        document.getElementById('turbulence').addEventListener('input', (e) => {
+            settings.turbulence = parseFloat(e.target.value);
+            document.getElementById('turbulenceValue').textContent = e.target.value;
+        });
+        
+        document.getElementById('mirrorBtn').addEventListener('click', function() {
+            settings.mirrored = !settings.mirrored;
+            this.classList.toggle('active');
+        });
+        
+        document.getElementById('fullscreenBtn').addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                document.exitFullscreen();
+            }
+        });
+        
+        document.getElementById('hideUIBtn').addEventListener('click', () => {
+            controls.classList.toggle('hidden');
+            status.style.display = controls.classList.contains('hidden') ? 'none' : 'flex';
+        });
+        
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            particles = [];
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        });
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'h' || e.key === 'H') {
+                controls.classList.toggle('hidden');
+                status.style.display = controls.classList.contains('hidden') ? 'none' : 'flex';
+            } else if (e.key === 'f' || e.key === 'F') {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen();
+                } else {
+                    document.exitFullscreen();
+                }
+            } else if (e.key === 'c' || e.key === 'C') {
+                particles = [];
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            } else if (e.key === 'm' || e.key === 'M') {
+                settings.mirrored = !settings.mirrored;
+                document.getElementById('mirrorBtn').classList.toggle('active');
+            }
+        });
+        
+        // Initialize
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+        initWebcam();
+    </script>
+</body>
+</html>
